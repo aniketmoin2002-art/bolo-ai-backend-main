@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="hi">
 <head>
+<meta name="theme-color" content="#101525"><link rel="manifest" href="/admin.webmanifest"><link rel="icon" href="/bolo-admin-icon.svg" type="image/svg+xml">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Bolo AI · Admin</title>
 <style>
@@ -20,3 +21,4 @@ async function refresh(){try{const r=await fetch('/api/admin/overview',{credenti
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();$('loginError').textContent='';const button=e.currentTarget.querySelector('button');button.disabled=true;button.textContent='Signing in…';try{const r=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({password:$('password').value})});const d=await r.json();if(!r.ok)throw Error(d.error||'Sign in failed');$('password').value='';showDashboard();await refresh();clearInterval(timer);timer=setInterval(refresh,20000)}catch(err){$('loginError').textContent=err.message||'Sign in failed.'}finally{button.disabled=false;button.textContent='Sign in'}});
 $('refresh').addEventListener('click',refresh);$('logout').addEventListener('click',async()=>{await fetch('/api/admin/logout',{method:'POST',credentials:'same-origin'});showLogin()});refresh().then(()=>{if(!$('dashboard').classList.contains('hidden'))timer=setInterval(refresh,20000)});
 </script></body></html>
+<script>if("serviceWorker" in navigator)navigator.serviceWorker.register("/service-worker.js",{scope:"/admin"}).catch(()=>{});</script>
