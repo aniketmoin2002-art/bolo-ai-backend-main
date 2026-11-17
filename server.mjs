@@ -19,7 +19,7 @@ async function answer(req, res) {
   const { message, prompt, messages } = req.body || {};
   const input = message || prompt;
   const contents = Array.isArray(messages) && messages.length
-    ? messages.filter(m => m && typeof m.content === 'string').slice(-20).map(m => ({ role: m.role === 'assistant' || m.role === 'model' ? 'model' : 'user', parts: [{ text: m.content }] }))
+    ? messages.filter(m => m && typeof m.content === 'string').slice(-8).map(m => ({ role: m.role === 'assistant' || m.role === 'model' ? 'model' : 'user', parts: [{ text: m.content }] }))
     : typeof input === 'string' && input.trim() ? [{ role: 'user', parts: [{ text: input.trim() }] }] : null;
   if (!contents?.length) return res.status(400).json({ error: 'Send JSON with message or messages.' });
 
@@ -31,7 +31,7 @@ async function answer(req, res) {
       response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(MODEL) + ':generateContent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': KEY },
-        body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: 1024, thinkingConfig: { thinkingLevel: 'low' } } }),
+        body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: 512, thinkingConfig: { thinkingLevel: 'minimal' } } }),
         signal: controller.signal
       });
     } finally {
