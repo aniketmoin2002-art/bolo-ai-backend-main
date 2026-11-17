@@ -31,7 +31,7 @@ async function answer(req, res) {
       response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(MODEL) + ':generateContent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': KEY },
-        body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: 4096 } }),
+        body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: 1024, thinkingConfig: { thinkingLevel: 'low' } } }),
         signal: controller.signal
       });
     } finally {
