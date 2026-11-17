@@ -12,6 +12,8 @@ const IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 const imageEditRequests = new Map();
 const loginAttempts = new Map();
+const requestEvents = [];
+const transactions = [];
 const indexFile = fileURLToPath(new URL('./index.html', import.meta.url));
 const adminFile = fileURLToPath(new URL('./admin.html', import.meta.url));
 const stats = {
@@ -32,6 +34,9 @@ function track(type, handler) {
     stats[type].lastAt = new Date(started).toISOString();
     res.once('finish', () => {
       stats[type].totalMs += Date.now() - started;
+      const durationMs = Date.now() - started;
+      requestEvents.unshift({ type, statusCode: res.statusCode, durationMs, at: new Date().toISOString() });
+      if (requestEvents.length > 100) requestEvents.length = 100;
       if (res.statusCode >= 400) stats[type].errors += 1;
     });
     return handler(req, res);
@@ -188,3 +193,25 @@ const pwaAssets = {
 for (const [route, asset] of Object.entries(pwaAssets)) {
   app.get(route, (_req, res) => res.sendFile(fileURLToPath(new URL("./" + asset, import.meta.url))));
 }
+
+
+app.get("/api/admin/details", requireAdmin, (_req, res) => {
+  const revenue = transactions.filter(entry => entry.kind === "revenue");
+  const expenses = transactions.filter(entry => entry.kind === "expense");
+  const totalRevenue = revenue.reduce((sum, entry) => sum + entry.amount, 0);
+  const totalExpenses = expenses.reduce((sum, entry) => sum + entry.amount, 0);
+  return res.json({ activity: requestEvents, transactionSummary: { records: transactions, revenue: { count: revenue.length, amount: totalRevenue }, expenses: { count: expenses.length, amount: totalExpenses }, net: totalRevenue - totalExpenses }, persistenceNote: "Usage logs and manual income/expense records are held in server memory. They reset when the server restarts or redeploys." });
+});
+
+app.post("/api/admin/transactions", requireAdmin, (req, res) => {
+  const { kind, amount, method, note } = req.body || {};
+  const value = Number(amount);
+  if (!["revenue", "expense"].includes(kind)) return res.status(400).json({ error: "Choose income or expense." });
+  if (!Number.isFinite(value) || value <= 0 || value > 100000000) return res.status(400).json({ error: "Enter a valid amount in INR." });
+  const safeMethod = typeof method === "string" ? method.trim().slice(0, 40) : "";
+  if (!safeMethod) return res.status(400).json({ error: "Choose a payment method." });
+  const entry = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), kind, amount: Math.round(value * 100) / 100, method: safeMethod, note: typeof note === "string" ? note.trim().slice(0, 140) : "", createdAt: new Date().toISOString() };
+  transactions.unshift(entry);
+  if (transactions.length > 500) transactions.length = 500;
+  return res.status(201).json({ ok: true, entry });
+});
