@@ -176,3 +176,15 @@ app.post('/api/edit-image', track('imageEdit', editImage));
 app.post('/chat', track('chat', answer));
 app.post('/api/chat', track('chat', answer));
 app.listen(PORT, '0.0.0.0', () => console.log('Bolo AI listening on port ' + PORT));
+
+
+const pwaAssets = {
+  "/manifest.webmanifest": "manifest.webmanifest",
+  "/admin.webmanifest": "admin.webmanifest",
+  "/bolo-icon.svg": "bolo-icon.svg",
+  "/bolo-admin-icon.svg": "bolo-admin-icon.svg",
+  "/service-worker.js": "service-worker.js"
+};
+for (const [route, asset] of Object.entries(pwaAssets)) {
+  app.get(route, (_req, res) => res.sendFile(fileURLToPath(new URL("./" + asset, import.meta.url))));
+}
