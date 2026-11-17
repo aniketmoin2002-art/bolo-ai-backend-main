@@ -1,0 +1,1 @@
+{"id":"/admin","name":"Bolo AI Admin","short_name":"Bolo Admin","description":"Private Bolo AI service dashboard.","start_url":"/admin","scope":"/admin","display":"standalone","background_color":"#080d1b","theme_color":"#101525","icons":[{"src":"/bolo-admin-icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
