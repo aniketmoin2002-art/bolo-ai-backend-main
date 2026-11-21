@@ -356,7 +356,7 @@ function safeIllustration(source,w,h){
 async function illustrationPNG(prompt,ratio,signal){
  const [w,h]=ratio==='9:16'?[576,1024]:ratio==='16:9'?[1024,576]:[768,768];
  const instruction='Draw the requested subject as an original polished flat vector illustration. Return only a complete valid SVG with viewBox="0 0 '+w+' '+h+'". Use a full background, clear silhouettes and layered detail. Allowed elements: g,path,rect,circle,ellipse,line,polyline,polygon,text. Use solid fill and stroke attributes. No CSS, defs, external assets, scripts, or markup outside SVG. Keep it under 5000 characters. Subject: '+prompt;
- const response=await studioRequest('/api/chat',{message:instruction,messages:[{role:'user',content:instruction}]},signal);
+ const response=await studioRequest('/api/illustration',{message:instruction,messages:[{role:'user',content:instruction}]},signal);
  const svg=safeIllustration(extract(response),w,h);
  const url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml;charset=utf-8'}));
  try{
