@@ -135,7 +135,7 @@ async function editImage(req, res) {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': KEY },
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [
-            { text: (vision ? 'Answer the question using the provided image. ' : generate ? 'Generate an original image. ' : 'Edit the uploaded image as instructed. ') + prompt.trim() },
+            { text: (vision ? 'Answer the question using the provided image. ' : generate ? (req.body.style === 'photograph' ? 'Create an original photorealistic camera photograph. Follow the user’s scene, subject positions and relative distances closely. Use plausible real-world lighting, natural skin and material textures, and optical perspective. Exclude cartoon, vector illustration, painting and CGI aesthetics. Scene: ' : 'Generate an original image. ') : 'Edit the uploaded image as instructed. ') + prompt.trim() },
             ...(generate ? [] : [{ inlineData: { mimeType, data: image } }])
           ] }],
           ...(vision ? {} : { generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { aspectRatio: ['1:1','3:2','2:3','4:3','3:4','16:9','9:16'].includes(aspectRatio) ? aspectRatio : '1:1', imageSize: '1K' } } })

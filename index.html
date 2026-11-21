@@ -367,19 +367,19 @@ async function illustrationPNG(prompt,ratio,signal){
 }
 function generatePanel(){
  const signal=studioSession();const prompt=field('कैसी इमेज चाहिए?',element('textarea'));prompt.maxLength=1000;prompt.placeholder='जैसे, नीले कप में गरम चाय, पीछे पहाड़';
- const style=field('चित्र की शैली',element('select'));style.add(new Option('AI इलस्ट्रेशन','illustration'));style.add(new Option('AI फोटो · इमेज मॉडल','photo'));
+ const style=field('चित्र की शैली',element('select'));style.add(new Option('रियलिस्टिक फोटो','photo'));style.add(new Option('ड्रॉइंग / इलस्ट्रेशन','illustration'));
  const ratio=field('फॉर्मेट',element('select'));for(const [k,v] of [['1:1','स्क्वायर'],['9:16','स्टोरी'],['16:9','लैंडस्केप']])ratio.add(new Option(v,k));
  const preview=element('img');preview.style.maxWidth='100%';preview.hidden=true;preview.alt='आपकी बनाई हुई इमेज';stage.append(preview);
  const status=resultBox();
  action('इमेज बनाएँ',async()=>{
   const subject=prompt.value.trim();if(!subject)throw Error('पहले इमेज का विवरण लिखें।');
-  preview.hidden=true;status.textContent='इमेज बन रही है…';
+  const photo=style.value==='photo';preview.hidden=true;status.textContent=photo?'रियलिस्टिक फोटो बन रही है…':'इलस्ट्रेशन बन रहा है…';
   try{
    let src;
    if(style.value==='illustration')src=await illustrationPNG(subject,ratio.value,signal);
-   else{const data=await studioRequest('/api/generate-image',{prompt:subject,aspectRatio:ratio.value},signal);if(!data.image)throw Error('मॉडल से फोटो नहीं मिली।');src='data:'+data.mimeType+';base64,'+data.image}
+   else{const data=await studioRequest('/api/generate-image',{prompt:subject,aspectRatio:ratio.value,style:'photograph'},signal);if(!data.image)throw Error('मॉडल से फोटो नहीं मिली।');src='data:'+data.mimeType+';base64,'+data.image}
    preview.src=src;await preview.decode();preview.hidden=false;status.textContent='इमेज तैयार है।';
-  }catch(e){status.textContent='';if(/quota|free.tier/i.test(e.message))throw Error('इस मॉडल का कोटा उपलब्ध नहीं है। इलस्ट्रेशन शैली चुनकर कोशिश करें।');throw e}
+  }catch(e){status.textContent='';if(photo&&/quota|free.tier/i.test(e.message))throw Error('फोटो मॉडल का कोटा अभी उपलब्ध नहीं है। इस अनुरोध की फोटो नहीं बनी।');throw e}
  });
  action('इमेज डाउनलोड करें',()=>{if(preview.hidden)throw Error('पहले इमेज बनाएँ।');const a=element('a');a.href=preview.src;a.download='Altroz-AI-image.'+(preview.src.includes('image/jpeg')?'jpg':preview.src.includes('image/webp')?'webp':'png');a.click()});
 }
