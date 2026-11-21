@@ -311,4 +311,61 @@ function sharePanel(){
 }
 advancedTools.push(['वेब रिसर्च · Wikipedia',researchPanel],['PDF और स्क्रीनशॉट पढ़ें',readerPanel],['पोस्टर और फोटो रील',reelPanel],['इंस्ट्रुमेंटल संगीत',musicPanel],['दूसरे ऐप में शेयर करें',sharePanel]);
 
-if(location.protocol==='https:'&&'serviceWorker'in navigator)navigator.serviceWorker.register('/service-worker.js').catch(()=>{});</script></body></html>
+if(location.protocol==='https:'&&'serviceWorker'in navigator)navigator.serviceWorker.register('/service-worker.js').catch(()=>{});</script><script>async function studioRequest(path, payload, signal){
+ const response=await fetch(BASE+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal});
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok)throw Error(data.error||'सर्वर ने जवाब नहीं दिया ('+response.status+')');
+ return data;
+}
+function studioSession(){
+ const controller=new AbortController();studio.addEventListener('close',()=>controller.abort(),{once:true});return controller.signal;
+}
+function generatePanel(){
+ const signal=studioSession();
+ const prompt=field('कैसी इमेज चाहिए?',element('textarea'));prompt.maxLength=1000;
+ const ratio=field('फॉर्मेट',element('select'));for(const [k,v] of [['1:1','स्क्वायर'],['9:16','स्टोरी'],['16:9','लैंडस्केप']])ratio.add(new Option(v,k));
+ const preview=element('img');preview.style.maxWidth='100%';preview.hidden=true;preview.alt='आपकी बनाई हुई इमेज';stage.append(preview);
+ action('AI से इमेज बनाएँ',async()=>{if(!prompt.value.trim())throw Error('पहले इमेज का विवरण लिखें।');
+ const data=await studioRequest('/api/generate-image',{prompt:prompt.value,aspectRatio:ratio.value},signal);
+ if(!data.image)throw Error('मॉडल से इमेज नहीं मिली।');preview.src='data:'+data.mimeType+';base64,'+data.image;preview.hidden=false});
+ action('इमेज डाउनलोड करें',()=>{if(preview.hidden)throw Error('पहले इमेज बनाएँ।');const a=element('a');a.href=preview.src;a.download='Bolo-image.'+(preview.src.includes('image/jpeg')?'jpg':preview.src.includes('image/webp')?'webp':'png');a.click()});
+}
+function visionPanel(){
+ const signal=studioSession();
+ const input=fileField('फोटो या स्क्रीनशॉट','image/png,image/jpeg,image/webp');
+ const preview=element('img');preview.alt='भेजी जाने वाली तस्वीर';preview.hidden=true;preview.style.maxWidth='100%';stage.append(preview);
+ const question=field('इस तस्वीर के बारे में क्या जानना है?',element('textarea'));question.maxLength=1000;
+ const output=resultBox();let picture=null,revision=0;
+ async function select(blob){
+  const rev=++revision;picture=null;preview.hidden=true;output.textContent='';
+  if(!blob)return;
+  if(blob.size>7000000||!['image/png','image/jpeg','image/webp'].includes(blob.type))throw Error('7 MB तक की PNG, JPG या WebP चुनें।');
+  const url=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(Error('फाइल पढ़ी नहीं गई।'));r.readAsDataURL(blob)});
+  if(rev!==revision||signal.aborted)return;picture={image:url.split(',')[1],mimeType:blob.type};preview.src=url;preview.hidden=false;
+ }
+ input.onchange=()=>select(input.files[0]).catch(e=>{$('studioError').textContent=e.message});
+ if(navigator.mediaDevices?.getDisplayMedia)action('स्क्रीन का एक फ्रेम लें',async()=>{
+  const stream=await navigator.mediaDevices.getDisplayMedia({video:true,audio:false});
+  const video=element('video');try{if(signal.aborted)return;video.srcObject=stream;video.muted=true;await video.play();const canvas=element('canvas'),scale=Math.min(1,1800/Math.max(video.videoWidth,video.videoHeight));canvas.width=Math.max(1,Math.round(video.videoWidth*scale));canvas.height=Math.max(1,Math.round(video.videoHeight*scale));canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);await select(await new Promise(res=>canvas.toBlob(res,'image/jpeg',.88)));}
+  finally{stream.getTracks().forEach(t=>t.stop());video.srcObject=null}
+ });
+ action('यह तस्वीर भेजकर पूछें',async()=>{if(!picture||!question.value.trim())throw Error('तस्वीर चुनें और सवाल लिखें।');output.textContent='';const data=await studioRequest('/api/ask-image',{...picture,prompt:question.value.trim()},signal);output.textContent=data.reply});
+}
+function workflowPanel(){
+ const signal=studioSession();const key='bolo_workflows_v1';
+ const saved=JSON.parse(localStorage.getItem(key)||'[]');
+ const picker=field('सेव किया हुआ काम',element('select'));const name=field('काम का नाम',element('input'));
+ const steps=field('हर लाइन में एक निर्देश · अधिकतम 5',element('textarea'));
+ steps.placeholder='मुख्य तथ्य निकालो\nउन तथ्यों से हिंदी रील की स्क्रिप्ट लिखो';
+ const input=field('इस बार का इनपुट',element('textarea'));const result=resultBox();let finalText='';
+ function refresh(){picker.replaceChildren(new Option('नया काम',''));for(const item of saved)picker.add(new Option(item.name,item.name))}
+ refresh();picker.onchange=()=>{const item=saved.find(x=>x.name===picker.value);name.value=item?.name||'';steps.value=item?.steps.join('\n')||''};
+ function instructions(){const lines=steps.value.split('\n').map(v=>v.trim()).filter(Boolean);if(!lines.length||lines.length>5)throw Error('1 से 5 निर्देश दें।');return lines}
+ action('काम सेव करें',()=>{const lines=instructions(),label=name.value.trim();if(!label)throw Error('काम का नाम लिखें।');const index=saved.findIndex(x=>x.name===label),item={name:label,steps:lines};if(index===-1)saved.push(item);else saved[index]=item;localStorage.setItem(key,JSON.stringify(saved));refresh();picker.value=label;result.textContent='काम सेव हुआ।';finalText=''});
+ action('सभी स्टेप चलाएँ',async()=>{const lines=instructions();let value=input.value.trim();if(!value)throw Error('इस बार का इनपुट दें।');result.textContent='';finalText='';
+ for(const [i,instruction] of lines.entries()){const message=instruction+'\n\nइनपुट:\n'+value;result.textContent+='\n'+(i+1)+'. '+instruction+'\n';const data=await studioRequest('/api/chat',{message,messages:[{role:'user',content:message}]},signal);value=extract(data);if(!value)throw Error('इस स्टेप का जवाब खाली था।');result.textContent+=value+'\n'}
+ finalText=value});
+ action('आखिरी परिणाम चैट में लें',()=>useText(finalText));
+}
+advancedTools.push(['प्रॉम्प्ट से AI इमेज',generatePanel],['स्क्रीन और फोटो पर सवाल',visionPanel],['मल्टी-स्टेप काम',workflowPanel]);
+</script></body></html>

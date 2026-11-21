@@ -113,10 +113,12 @@ app.get('/api/admin/overview', requireAdmin, (_req, res) => {
 
 async function editImage(req, res) {
   if (!KEY) return res.status(503).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
+  const generate = req.path === '/api/generate-image';
+  const vision = req.path === '/api/ask-image';
   const { image, mimeType, prompt, aspectRatio } = req.body || {};
-  if (typeof image !== 'string' || !image) return res.status(400).json({ error: 'Upload an image to edit.' });
-  if (!['image/png', 'image/jpeg', 'image/webp'].includes(mimeType)) return res.status(415).json({ error: 'Use a PNG, JPG, or WEBP image.' });
-  if (image.length > 10000000) return res.status(413).json({ error: 'Image is too large. Choose an image under 7 MB.' });
+  if (!generate && (typeof image !== 'string' || !image)) return res.status(400).json({ error: 'Upload an image to edit.' });
+  if (!generate && !['image/png', 'image/jpeg', 'image/webp'].includes(mimeType)) return res.status(415).json({ error: 'Use a PNG, JPG, or WEBP image.' });
+  if (!generate && image.length > 10000000) return res.status(413).json({ error: 'Image is too large. Choose an image under 7 MB.' });
   if (typeof prompt !== 'string' || !prompt.trim()) return res.status(400).json({ error: 'Describe the change you want to make.' });
   if (prompt.length > 1000) return res.status(400).json({ error: 'Keep the edit instruction under 1,000 characters.' });
   const now = Date.now();
@@ -129,15 +131,25 @@ async function editImage(req, res) {
     const timeout = setTimeout(() => controller.abort(), 90000);
     let response;
     try {
-      response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(IMAGE_MODEL) + ':generateContent', {
+      response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(vision ? MODEL : IMAGE_MODEL) + ':generateContent', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': KEY },
-        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Edit the uploaded image according to this instruction. Preserve the main subject and details the user did not ask to change. Return the edited image. Instruction: ' + prompt.trim() }, { inlineData: { mimeType, data: image } }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { aspectRatio: ['1:1','3:2','2:3','4:3','3:4','16:9','9:16'].includes(aspectRatio) ? aspectRatio : '1:1', imageSize: '1K' } } }),
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [
+            { text: (vision ? 'Answer the question using the provided image. ' : generate ? 'Generate an original image. ' : 'Edit the uploaded image as instructed. ') + prompt.trim() },
+            ...(generate ? [] : [{ inlineData: { mimeType, data: image } }])
+          ] }],
+          ...(vision ? {} : { generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { aspectRatio: ['1:1','3:2','2:3','4:3','3:4','16:9','9:16'].includes(aspectRatio) ? aspectRatio : '1:1', imageSize: '1K' } } })
+        }),
         signal: controller.signal
       });
     } finally { clearTimeout(timeout); }
     const data = await response.json();
     if (!response.ok) return res.status(response.status).json({ error: data?.error?.message || 'Gemini image editing failed.' });
     const parts = data.candidates?.[0]?.content?.parts || [];
+    if (vision) {
+      const reply = parts.map(part => part.text || '').join(' ').trim();
+      return reply ? res.json({ reply }) : res.status(502).json({ error: 'The model returned no image description.' });
+    }
     const imagePart = parts.find(part => part.inlineData?.data || part.inline_data?.data);
     if (!imagePart) return res.status(502).json({ error: parts.map(part => part.text || '').filter(Boolean).join('\n') || 'Gemini did not return an edited image. Try another instruction.' });
     const inline = imagePart.inlineData || imagePart.inline_data;
@@ -177,6 +189,8 @@ async function answer(req, res) {
   }
 }
 
+app.post('/api/generate-image', track('imageEdit', editImage));
+app.post('/api/ask-image', track('chat', editImage));
 app.post('/api/edit-image', track('imageEdit', editImage));
 app.post('/chat', track('chat', answer));
 app.post('/api/chat', track('chat', answer));
@@ -215,3 +229,4 @@ app.post("/api/admin/transactions", requireAdmin, (req, res) => {
   if (transactions.length > 500) transactions.length = 500;
   return res.status(201).json({ ok: true, entry });
 });
+
