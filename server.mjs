@@ -224,7 +224,7 @@ async function answer(req, res) {
       response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(MODEL) + ':generateContent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': KEY },
-        body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: 512, thinkingConfig: { thinkingLevel: 'minimal' } } }),
+        body: JSON.stringify({ systemInstruction: {parts:[{text:"Your assistant name is Altroz AI. Use this name when asked who you are."}]}, contents, generationConfig: { maxOutputTokens: 512, thinkingConfig: { thinkingLevel: 'minimal' } } }),
         signal: controller.signal
       });
     } finally { clearTimeout(timeout); }
@@ -244,7 +244,7 @@ app.post('/api/edit-image', track('imageEdit', editImage));
 app.post('/chat', track('chat', answer));
 app.post('/api/chat', track('chat', answer));
 app.post('/api/illustration', track('chat', illustration));
-app.listen(PORT, '0.0.0.0', () => console.log('Bolo AI listening on port ' + PORT));
+app.listen(PORT, '0.0.0.0', () => console.log('Altroz AI listening on port ' + PORT));
 
 
 const pwaAssets = {
