@@ -358,10 +358,21 @@ function workflowPanel(){
  const steps=field('हर लाइन में एक निर्देश · अधिकतम 5',element('textarea'));
  steps.placeholder='मुख्य तथ्य निकालो\nउन तथ्यों से हिंदी रील की स्क्रिप्ट लिखो';
  const input=field('इस बार का इनपुट',element('textarea'));const result=resultBox();let finalText='';
- function refresh(){picker.replaceChildren(new Option('नया काम',''));for(const item of saved)picker.add(new Option(item.name,item.name))}
- refresh();picker.onchange=()=>{const item=saved.find(x=>x.name===picker.value);name.value=item?.name||'';steps.value=item?.steps.join('\n')||''};
+ const reel={name:'हिंदी रील · 60 सेकंड',steps:[
+ 'दिए गए विषय पर एक लाइन का बोलचाल वाला हिंदी हुक लिखें। अगला स्टेप विषय समझ सके इसलिए विषय और हुक दोनों दें।',
+ 'इसी विषय और हुक से लगभग 60 सेकंड की हिंदी रील स्क्रिप्ट लिखें। शुरुआत उसी हुक से करें और अंत में दर्शक से एक सवाल पूछें।',
+ 'इस स्क्रिप्ट के लिए हिंदी टाइटल और छोटा कैप्शन लिखें। मूल स्क्रिप्ट के साथ तीनों चीजें दिखाएँ।'
+ ]};
+ function refresh(){
+  picker.replaceChildren(new Option('नया काम',''),new Option(reel.name,'preset:reel'));
+  for(const item of saved)picker.add(new Option(item.name,'saved:'+item.name))
+ }
+ refresh();picker.onchange=()=>{
+  const item=picker.value==='preset:reel'?reel:picker.value.startsWith('saved:')?saved.find(x=>x.name===picker.value.slice(6)):null;
+  name.value=item?.name||'';steps.value=item?.steps.join('\n')||'';
+ };
  function instructions(){const lines=steps.value.split('\n').map(v=>v.trim()).filter(Boolean);if(!lines.length||lines.length>5)throw Error('1 से 5 निर्देश दें।');return lines}
- action('काम सेव करें',()=>{const lines=instructions(),label=name.value.trim();if(!label)throw Error('काम का नाम लिखें।');const index=saved.findIndex(x=>x.name===label),item={name:label,steps:lines};if(index===-1)saved.push(item);else saved[index]=item;localStorage.setItem(key,JSON.stringify(saved));refresh();picker.value=label;result.textContent='काम सेव हुआ।';finalText=''});
+ action('काम सेव करें',()=>{const lines=instructions(),label=name.value.trim();if(!label)throw Error('काम का नाम लिखें।');const index=saved.findIndex(x=>x.name===label),item={name:label,steps:lines};if(index===-1)saved.push(item);else saved[index]=item;localStorage.setItem(key,JSON.stringify(saved));refresh();picker.value='saved:'+label;result.textContent='काम सेव हुआ।';finalText=''});
  action('सभी स्टेप चलाएँ',async()=>{const lines=instructions();let value=input.value.trim();if(!value)throw Error('इस बार का इनपुट दें।');result.textContent='';finalText='';
  for(const [i,instruction] of lines.entries()){const message=instruction+'\n\nइनपुट:\n'+value;result.textContent+='\n'+(i+1)+'. '+instruction+'\n';const data=await studioRequest('/api/chat',{message,messages:[{role:'user',content:message}]},signal);value=extract(data);if(!value)throw Error('इस स्टेप का जवाब खाली था।');result.textContent+=value+'\n'}
  finalText=value});
