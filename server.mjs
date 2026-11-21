@@ -159,6 +159,55 @@ async function editImage(req, res) {
   }
 }
 
+const modelApi = 'https://generativelanguage.googleapis.com/v1beta/models';
+let alternateCache;
+async function illustrationAlternates(){
+  if (alternateCache && alternateCache.until > Date.now()) return alternateCache.names;
+  const response = await fetch(modelApi+'?pageSize=1000', {
+    headers:{'x-goog-api-key':KEY}, signal:AbortSignal.timeout(3500)
+  });
+  if (!response.ok) return [];
+  const {models=[]} = await response.json();
+  const names = models.filter(m=>m.supportedGenerationMethods?.includes('generateContent'))
+    .map(m=>m.name.replace(/^models\//,''))
+    .filter(n=>n!==MODEL && /^gemini-[\d.]+-flash(?:-lite)?$/.test(n))
+    .sort((a,b)=>b.localeCompare(a,'en',{numeric:true}));
+  alternateCache={names,until:Date.now()+600000};
+  return names;
+}
+async function illustration(req,res){
+  if (!KEY) return res.status(503).json({error:'सर्वर की AI कुंजी उपलब्ध नहीं है।'});
+  const message=req.body?.message;
+  if(typeof message!=='string'||!message.trim()||message.length>12000) return res.status(400).json({error:'इमेज का छोटा विवरण लिखें।'});
+  let models=[MODEL,MODEL];
+  for(let i=0;i<models.length;i++){
+    if(res.destroyed) return;
+    try{
+      const response=await fetch(modelApi+'/'+encodeURIComponent(models[i])+':generateContent',{
+        method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':KEY},
+        body:JSON.stringify({contents:[{role:'user',parts:[{text:message}]}],generationConfig:{maxOutputTokens:4096}}),
+        signal:AbortSignal.timeout(20000)
+      });
+      const data=await response.json().catch(()=>({}));
+      if(response.ok){
+        const reply=data.candidates?.[0]?.content?.parts?.filter(p=>!p.thought).map(p=>p.text||'').join('');
+        if(reply) return res.json({reply});
+        return res.status(422).json({error:'मॉडल ने चित्र नहीं लौटाया। प्रॉम्प्ट बदलकर कोशिश करें।'});
+      }
+      if(![408,429,500,502,503,504].includes(response.status)&&!(response.status===404&&i>0))
+        return res.status(response.status).json({error:data.error?.message||'इमेज अनुरोध पूरा नहीं हुआ।'});
+    }catch(error){
+      if(!['TimeoutError','AbortError','TypeError'].includes(error.name))throw error;
+    }
+    if(i===0){
+      const alternatives=await illustrationAlternates().catch(()=>[]);
+      if(alternatives.length)models=[MODEL,...alternatives.slice(0,2),MODEL];
+    }
+    if(i+1<models.length)await new Promise(resolve=>setTimeout(resolve,500*(i+1)));
+  }
+  return res.status(503).json({error:'अभी उपलब्ध AI मॉडल व्यस्त हैं। कुछ देर बाद इसी प्रॉम्प्ट से दोबारा कोशिश करें।'});
+}
+
 async function answer(req, res) {
   if (!KEY) return res.status(503).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
   const { message, prompt, messages } = req.body || {};
@@ -175,7 +224,7 @@ async function answer(req, res) {
       response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(MODEL) + ':generateContent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': KEY },
-        body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: req.path === '/api/illustration' ? 4096 : 512, thinkingConfig: { thinkingLevel: 'minimal' } } }),
+        body: JSON.stringify({ contents, generationConfig: { maxOutputTokens: 512, thinkingConfig: { thinkingLevel: 'minimal' } } }),
         signal: controller.signal
       });
     } finally { clearTimeout(timeout); }
@@ -194,7 +243,7 @@ app.post('/api/ask-image', track('chat', editImage));
 app.post('/api/edit-image', track('imageEdit', editImage));
 app.post('/chat', track('chat', answer));
 app.post('/api/chat', track('chat', answer));
-app.post('/api/illustration', track('chat', answer));
+app.post('/api/illustration', track('chat', illustration));
 app.listen(PORT, '0.0.0.0', () => console.log('Bolo AI listening on port ' + PORT));
 
 
