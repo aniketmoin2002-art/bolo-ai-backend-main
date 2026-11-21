@@ -1,2 +1,1 @@
-{"id":"/","name":"Altroz AI","short_name":"Altroz AI","description":"Chat with Altroz AI and edit images.","start_url":"/","scope":"/","display":"standalone","background_color":"#0b1020","theme_color":"#101525","icons":[{"src":"/bolo-icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
-
+{"id": "/", "name": "Altroz AI", "short_name": "Altroz AI", "description": "Chat with Altroz AI and edit images.", "start_url": "/", "scope": "/", "display": "standalone", "background_color": "#101010", "theme_color": "#101010", "icons": [{"src": "/bolo-icon.svg?v=mono1", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}]}
